@@ -6,8 +6,12 @@ import requests
 
 app = Flask(__name__)
 
+# ════════════════════════════════════════
+# Config — defina essas variáveis no Railway
+# ════════════════════════════════════════
+
 SCRIPT_TOKEN  = os.environ.get("SCRIPT_TOKEN", "troque_isso_aqui")
-GITHUB_TOKEN  = os.environ.get("GITHUB_TOKEN", "")             
+GITHUB_TOKEN  = os.environ.get("GITHUB_TOKEN", "")
 GITHUB_USER   = os.environ.get("GITHUB_USER", "SEU_USUARIO")
 GITHUB_REPO   = os.environ.get("GITHUB_REPO", "SEU_REPO")
 GITHUB_BRANCH = os.environ.get("GITHUB_BRANCH", "main")
@@ -51,7 +55,7 @@ def fetch_from_github(file_path):
     if response.status_code == 404:
         abort(404)
     elif response.status_code in (401, 403):
-        abort(500) 
+        abort(500)
     elif response.status_code != 200:
         abort(500)
 
@@ -61,13 +65,15 @@ def fetch_from_github(file_path):
 # Rotas
 # ════════════════════════════════════════
 
-@app.route("/main")
-def serve_main():
-    content = fetch_from_github(SCRIPTS["main"])
+@app.route("/init")
+def serve_init():
+    # Único ponto de entrada público
+    content = fetch_from_github("init.lua")
     return content, 200, {"Content-Type": "text/plain"}
 
-@app.route("/script/<name>")
+@app.route("/script/<n>")
 def serve_script(name):
+    # Todas as rotas privadas — exige token
     validate_token()
 
     file_path = SCRIPTS.get(name)
@@ -80,6 +86,10 @@ def serve_script(name):
 @app.route("/")
 def index():
     return "404 Not Found", 404
+
+# ════════════════════════════════════════
+# Entry point
+# ════════════════════════════════════════
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
