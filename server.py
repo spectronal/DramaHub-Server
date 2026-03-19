@@ -56,7 +56,7 @@ def serve_init():
 @app.route("/script/<name>")
 def serve_script(name):
     validate_token()
-    file_path = SCRIPTS.get(n)
+    file_path = SCRIPTS.get(name)
     if not file_path:
         abort(404)
     content = fetch_from_github(file_path)
