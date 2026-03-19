@@ -6,10 +6,6 @@ import requests
 
 app = Flask(__name__)
 
-# ════════════════════════════════════════
-# Config — defina essas variáveis no Railway
-# ════════════════════════════════════════
-
 SCRIPT_TOKEN  = os.environ.get("SCRIPT_TOKEN", "troque_isso_aqui")
 GITHUB_TOKEN  = os.environ.get("GITHUB_TOKEN", "")
 GITHUB_USER   = os.environ.get("GITHUB_USER", "SEU_USUARIO")
@@ -18,7 +14,6 @@ GITHUB_BRANCH = os.environ.get("GITHUB_BRANCH", "main")
 
 BASE_PATH = "AnimeGhostBuild"
 
-# Mapa de nome -> caminho no repositório
 SCRIPTS = {
     "main":     f"{BASE_PATH}/Main.lua",
     "state":    f"{BASE_PATH}/Systems/State.lua",
@@ -30,10 +25,6 @@ SCRIPTS = {
     "gacha":    f"{BASE_PATH}/Core/Gacha.lua",
 }
 
-# ════════════════════════════════════════
-# Helpers
-# ════════════════════════════════════════
-
 def validate_token():
     token = request.args.get("token") or request.headers.get("X-Token")
     if token != SCRIPT_TOKEN:
@@ -44,52 +35,36 @@ def fetch_from_github(file_path):
         f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}"
         f"/contents/{file_path}?ref={GITHUB_BRANCH}"
     )
-
     headers = {
         "Authorization": f"token {GITHUB_TOKEN}",
         "Accept": "application/vnd.github.v3.raw",
     }
-
     response = requests.get(url, headers=headers)
-
     if response.status_code == 404:
         abort(404)
     elif response.status_code in (401, 403):
         abort(500)
     elif response.status_code != 200:
         abort(500)
-
     return response.text
-
-# ════════════════════════════════════════
-# Rotas
-# ════════════════════════════════════════
 
 @app.route("/init")
 def serve_init():
-    # Único ponto de entrada público
     content = fetch_from_github("init.lua")
     return content, 200, {"Content-Type": "text/plain"}
 
 @app.route("/script/<name>")
-def serve_script(name):
-    # Todas as rotas privadas — exige token
+def serve_script(n):
     validate_token()
-
-    file_path = SCRIPTS.get(name)
+    file_path = SCRIPTS.get(n)
     if not file_path:
         abort(404)
-
     content = fetch_from_github(file_path)
     return content, 200, {"Content-Type": "text/plain"}
 
 @app.route("/")
 def index():
     return "404 Not Found", 404
-
-# ════════════════════════════════════════
-# Entry point
-# ════════════════════════════════════════
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
