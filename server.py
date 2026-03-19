@@ -71,7 +71,7 @@ def serve_init():
     content = fetch_from_github("init.lua")
     return content, 200, {"Content-Type": "text/plain"}
 
-@app.route("/script/<n>")
+@app.route("/script/<name>")
 def serve_script(name):
     # Todas as rotas privadas — exige token
     validate_token()
