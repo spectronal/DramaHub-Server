@@ -54,7 +54,7 @@ def serve_init():
     return content, 200, {"Content-Type": "text/plain"}
 
 @app.route("/script/<name>")
-def serve_script(n):
+def serve_script(name):
     validate_token()
     file_path = SCRIPTS.get(n)
     if not file_path:
