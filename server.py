@@ -23,6 +23,7 @@ SCRIPTS = {
     "farm":     f"{BASE_PATH}/Core/Farm.lua",
     "gamemode": f"{BASE_PATH}/Core/Gamemode.lua",
     "gacha":    f"{BASE_PATH}/Core/Gacha.lua",
+    "scrolls":  f"{BASE_PATH}/Core/Scrolls.lua",
 }
 
 def validate_token():
