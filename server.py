@@ -25,12 +25,14 @@ SCRIPTS = {
     "gamemode": f"{BASE_PATH}/Core/Gamemode.lua",
     "gacha":    f"{BASE_PATH}/Core/Gacha.lua",
     "scrolls":  f"{BASE_PATH}/Core/Scrolls.lua",
+    "exchange":    f"{BASE_PATH}/Core/Exchange.lua",
     # UI
     "ui-about":    f"{BASE_PATH}/UI/About.lua",
     "ui-farm":     f"{BASE_PATH}/UI/Farm.lua",
     "ui-player":   f"{BASE_PATH}/UI/Player.lua",
     "ui-gamemode": f"{BASE_PATH}/UI/Gamemode.lua",
     "ui-scroll":   f"{BASE_PATH}/UI/Scroll.lua",
+    "ui-exchange":   f"{BASE_PATH}/UI/Exchange.lua",
     "ui-gacha":    f"{BASE_PATH}/UI/Gacha.lua",
 }
 
