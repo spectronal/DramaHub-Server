@@ -63,9 +63,9 @@ def serve_init():
     return content, 200, {"Content-Type": "text/plain"}
 
 @app.route("/script/<name>")
-def serve_script(n):
+def serve_script(name):
     validate_token()
-    file_path = SCRIPTS.get(n)
+    file_path = SCRIPTS.get(name)
     if not file_path:
         abort(404)
     content = fetch_from_github(file_path)
