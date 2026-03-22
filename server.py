@@ -6,15 +6,16 @@ import requests
 
 app = Flask(__name__)
 
-SCRIPT_TOKEN  = os.environ.get("SCRIPT_TOKEN", "troque_isso_aqui")
+SCRIPT_TOKEN  = os.environ.get("SCRIPT_TOKEN", "my_token")
 GITHUB_TOKEN  = os.environ.get("GITHUB_TOKEN", "")
-GITHUB_USER   = os.environ.get("GITHUB_USER", "SEU_USUARIO")
-GITHUB_REPO   = os.environ.get("GITHUB_REPO", "SEU_REPO")
+GITHUB_USER   = os.environ.get("GITHUB_USER", "MY_USERNAME")
+GITHUB_REPO   = os.environ.get("GITHUB_REPO", "MY_REPO")
 GITHUB_BRANCH = os.environ.get("GITHUB_BRANCH", "main")
 
 BASE_PATH = "AnimeGhostBuild"
 
 SCRIPTS = {
+    # Core
     "main":     f"{BASE_PATH}/Main.lua",
     "state":    f"{BASE_PATH}/Systems/State.lua",
     "utils":    f"{BASE_PATH}/Core/Utils.lua",
@@ -24,6 +25,13 @@ SCRIPTS = {
     "gamemode": f"{BASE_PATH}/Core/Gamemode.lua",
     "gacha":    f"{BASE_PATH}/Core/Gacha.lua",
     "scrolls":  f"{BASE_PATH}/Core/Scrolls.lua",
+    # UI
+    "ui-about":    f"{BASE_PATH}/UI/About.lua",
+    "ui-farm":     f"{BASE_PATH}/UI/Farm.lua",
+    "ui-player":   f"{BASE_PATH}/UI/Player.lua",
+    "ui-gamemode": f"{BASE_PATH}/UI/Gamemode.lua",
+    "ui-scroll":   f"{BASE_PATH}/UI/Scroll.lua",
+    "ui-gacha":    f"{BASE_PATH}/UI/Gacha.lua",
 }
 
 def validate_token():
@@ -55,9 +63,9 @@ def serve_init():
     return content, 200, {"Content-Type": "text/plain"}
 
 @app.route("/script/<name>")
-def serve_script(name):
+def serve_script(n):
     validate_token()
-    file_path = SCRIPTS.get(name)
+    file_path = SCRIPTS.get(n)
     if not file_path:
         abort(404)
     content = fetch_from_github(file_path)
