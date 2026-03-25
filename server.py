@@ -34,7 +34,7 @@ SCRIPTS = {
     "ui-player":   f"{BASE_PATH}/UI/Player.lua",
     "ui-gamemode": f"{BASE_PATH}/UI/Gamemode.lua",
     "ui-scroll":   f"{BASE_PATH}/UI/Scroll.lua",
-    "ui-potion"    f"{BASE_PATH}/UI/Potions.lua",
+    "ui-potion":    f"{BASE_PATH}/UI/Potions.lua",
     "ui-exchange":   f"{BASE_PATH}/UI/Exchange.lua",
     "ui-gacha":    f"{BASE_PATH}/UI/Gacha.lua",
 }
