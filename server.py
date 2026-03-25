@@ -26,7 +26,7 @@ SCRIPTS = {
     "gacha":    f"{BASE_PATH}/Core/Gacha.lua",
     "scrolls":  f"{BASE_PATH}/Core/Scrolls.lua",
     "exchange": f"{BASE_PATH}/Core/Exchange.lua",
-    "potions":  f"{BASE_PATH}/Core/Potions.lua" 
+    "potions":  f"{BASE_PATH}/Core/Potions.lua",
     # UI
     "ui-about":    f"{BASE_PATH}/UI/About.lua",
     "ui-updatelogs":  f"{BASE_PATH}/UI/UpdateLogs.lua",
