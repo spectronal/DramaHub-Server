@@ -67,6 +67,20 @@ def serve_init():
     content = fetch_from_github("init.lua")
     return content, 200, {"Content-Type": "text/plain"}
 
+@app.route("/loader")
+def serve_loader():
+    url = (
+        f"https://api.github.com/repos/{GITHUB_USER}/Loader"
+        f"/contents/Loader.lua?ref=main"
+    )
+    headers = {"Accept": "application/vnd.github.v3.raw"}
+    response = requests.get(url, headers=headers)
+    if response.status_code == 404:
+        abort(404)
+    elif response.status_code != 200:
+        abort(500)
+    return response.text, 200, {"Content-Type": "text/plain"}
+
 @app.route("/script/<name>")
 def serve_script(name):
     validate_token()
