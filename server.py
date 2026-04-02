@@ -274,20 +274,19 @@ def admpanel():
             }}
         }}
 
-        function buildTabCard(userId, tab, tabDef, settings) {{
-            const rows = []
-
-            for (const key of (tabDef.booleans ?? [])) {{
-                const val = getVal(settings, tab, key) ?? false
-                rows.push(`
-                    <div class="row">
-                        <span>${{key}}</span>
-                        <label class="toggle">
-                            <input type="checkbox" id="${{userId}}_${{tab}}_${{key}}" ${{val ? "checked" : ""}} onchange="markDirty(this)">
-                            <span class="slider"></span>
-                        </label>
-                    </div>`)
-            }}
+        function buildPlayerBody(userId, player) {{
+                    const settings = player.settings ?? {{}}
+                    const cards = Object.entries(TABS).map(([tab, tabDef]) =>
+                        buildTabCard(userId, tab, tabDef, settings)
+                    ).join("")
+                    return `
+                        <div class="tabs-grid">${{cards}}</div>
+                        <div style="display:flex;gap:10px;margin-top:16px">
+                            <button class="save-btn" onclick="savePlayer('${{userId}}')">Apply Changes</button>
+                            <button class="save-btn" style="background:#3b82f6" onclick="refreshPlayer('${{userId}}')">Refresh Script</button>
+                            <button class="save-btn" style="background:#ef4444" onclick="kickPlayer('${{userId}}')">Kick Player</button>
+                        </div>`
+                }}
 
             for (const key of (tabDef.numbers ?? [])) {{
                 const val = getVal(settings, tab, key) ?? 0
