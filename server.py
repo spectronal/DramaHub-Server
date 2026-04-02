@@ -511,6 +511,7 @@ def admpanel():
                     <button class="save-btn" onclick="savePlayer('${{userId}}')">Apply Changes</button>
                     <button class="save-btn" style="background:#3b82f6" onclick="refreshPlayer('${{userId}}')">Refresh Script</button>
                     <button class="save-btn" style="background:#ef4444" onclick="kickPlayer('${{userId}}')">Kick Player</button>
+                    <button class="save-btn" style="background:#42f59e" onclick="sendMessage('${{userId}}')">Send Message</button>
                 </div>`
         }}
 
@@ -522,6 +523,16 @@ def admpanel():
                 body: JSON.stringify({{ _control: {{ Kick: true, KickReason: reason }} }})
             }})
             showToast("Kick enviado!")
+        }}
+        
+        async function sendMessage(userId) {{
+            const admmessage = prompt("Mensagem:") ?? "Oi"
+            await fetch(`/control/override/${{userId}}?password=${{PASSWORD}}`, {{
+                method: "POST",
+                headers: {{ "Content-Type": "application/json" }},
+                body: JSON.stringify({{ _control: {{ mSender: true, sMessage: admmessage }} }})
+            }})
+            showToast("Mensagem enviada!")
         }}
 
         async function refreshPlayer(userId) {{
