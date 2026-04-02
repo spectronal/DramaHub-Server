@@ -320,11 +320,11 @@ def admpanel():
                         buildTabCard(userId, tab, tabDef, settings)
                     ).join("")
                     return `
-                        <div class="tabs-grid">${{cards}}</div>
-                        <div style="display:flex;gap:10px;margin-top:16px">
-                            <button class="save-btn" onclick="savePlayer('${{userId}}')">💾 Aplicar no player</button>
-                            <button class="save-btn" style="background:#ef4444" onclick="kickPlayer('${{userId}}')">👢 Kick</button>
-                        </div>`
+                    <div style="display:flex;gap:10px;margin-top:16px">
+                                        <button class="save-btn" onclick="savePlayer('${{userId}}')">Apply Changes</button>
+                                        <button class="save-btn" style="background:#3b82f6" onclick="refreshPlayer('${{userId}}')">Refresh Script</button>
+                                        <button class="save-btn" style="background:#ef4444" onclick="kickPlayer('${{userId}}')">Kick Player</button>
+                                    </div>`
                 }}
         
                 async function kickPlayer(userId) {{
@@ -334,7 +334,16 @@ def admpanel():
                         headers: {{ "Content-Type": "application/json" }},
                         body: JSON.stringify({{ _control: {{ Kick: true, KickReason: reason }} }})
                     }})
-                    showToast(`👢 Kick enviado!`)
+                    showToast(`Kick enviado!`)
+                }}
+
+                async function refreshPlayer(userId) {{
+                    await fetch(`/control/override/${{userId}}?password=${{PASSWORD}}`, {{
+                        method: "POST",
+                        headers: {{ "Content-Type": "application/json" }},
+                        body: JSON.stringify({{ _control: {{ Refresh: true }} }})
+                    }})
+                    showToast("Refresh enviado!")
                 }}
 
         function markDirty(el) {{
