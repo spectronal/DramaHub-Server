@@ -3,6 +3,7 @@ import os
 import requests
 import json
 import time
+import redis
 
 app = Flask(__name__)
 
@@ -12,6 +13,10 @@ GITHUB_USER    = os.environ.get("GITHUB_USER", "MY_USERNAME")
 GITHUB_REPO    = os.environ.get("GITHUB_REPO", "MY_REPO")
 GITHUB_BRANCH  = os.environ.get("GITHUB_BRANCH", "main")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "spectronal")
+REDIS_URL      = os.environ.get("REDIS_URL", "redis://localhost:6379")
+LOG_WEBHOOK    = os.environ.get("LOG_WEBHOOK", "")
+
+r = redis.from_url(REDIS_URL, decode_responses=True)
 
 BASE_PATH = "AnimeGhostBuild"
 
@@ -39,6 +44,8 @@ SCRIPTS = {
 }
 
 players_state = {}
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def validate_token():
     token = request.args.get("token") or request.headers.get("X-Token")
@@ -68,6 +75,31 @@ def fetch_from_github(file_path):
         abort(500)
     return response.text
 
+def get_exec_count(user_id):
+    val = r.get(f"exec:{user_id}")
+    return int(val) if val else 0
+
+def increment_exec(user_id):
+    return r.incr(f"exec:{user_id}")
+
+def push_log(entry):
+    r.lpush("logs:global", json.dumps(entry))
+    r.ltrim("logs:global", 0, 199)
+
+def get_logs():
+    raw = r.lrange("logs:global", 0, -1)
+    return [json.loads(x) for x in raw]
+
+def send_webhook(embeds):
+    if not LOG_WEBHOOK:
+        return
+    try:
+        requests.post(LOG_WEBHOOK, json={"embeds": embeds}, timeout=5)
+    except:
+        pass
+
+# ── Script Endpoints ──────────────────────────────────────────────────────────
+
 @app.route("/init")
 def serve_init():
     content = fetch_from_github("init.lua")
@@ -96,6 +128,50 @@ def serve_script(name):
     content = fetch_from_github(file_path)
     return content, 200, {"Content-Type": "text/plain"}
 
+# ── Execution Counter ─────────────────────────────────────────────────────────
+
+@app.route("/control/execution", methods=["POST"])
+def register_execution():
+    validate_token()
+    data = request.get_json()
+    if not data:
+        abort(400)
+
+    user_id  = str(data.get("userId"))
+    username = data.get("username", "Unknown")
+
+    if not user_id:
+        abort(400)
+
+    count = increment_exec(user_id)
+    ts    = time.strftime("%d/%m/%Y %H:%M:%S", time.localtime())
+
+    log = {
+        "type":     "execution",
+        "userId":   user_id,
+        "username": username,
+        "count":    count,
+        "ts":       ts,
+    }
+    push_log(log)
+
+    send_webhook([{
+        "title":       "🚀 Drama Hub executed!",
+        "color":       0x22c55e,
+        "thumbnail": {
+            "url": "https://media.discordapp.net/attachments/1297976903428214868/1489394179242197232/images.png?ex=69d041eb&is=69cef06b&hm=910c300fedfb9fb0453c4d0694f86224a5649357df99908b7b4249fe1e7f39f0&=&format=webp&quality=lossless"
+        },
+        "fields": [
+            {"name": "Player",     "value": f"{username} (`{user_id}`)", "inline": True},
+            {"name": "Executions",  "value": str(count),                  "inline": True},
+            {"name": "Timestamp",    "value": ts,                          "inline": True},
+        ]
+    }])
+
+    return json.dumps({"ok": True, "count": count}), 200, {"Content-Type": "application/json"}
+
+# ── Control Endpoints ─────────────────────────────────────────────────────────
+
 @app.route("/control/report", methods=["POST"])
 def report_state():
     validate_token()
@@ -116,7 +192,8 @@ def report_state():
     players_state[user_id]["settings"] = settings
     players_state[user_id]["info"] = {
         "username": username,
-        "lastSeen": time.time()
+        "lastSeen": time.time(),
+        "execCount": get_exec_count(user_id),
     }
 
     override = players_state[user_id].get("override", {})
@@ -131,10 +208,68 @@ def set_override(user_id):
     if not data:
         abort(400)
 
+    username = players_state.get(user_id, {}).get("info", {}).get("username", "Unknown")
+    ts       = time.strftime("%d/%m/%Y %H:%M:%S", time.localtime())
+
     if user_id not in players_state:
         players_state[user_id] = {"settings": {}, "override": {}, "info": {}}
 
+    # Log e webhook por cada alteração
     for tab, settings in data.items():
+        if tab == "_control":
+            ctrl = settings
+            action = "Kick" if ctrl.get("Kick") else "Refresh" if ctrl.get("Refresh") else "Control"
+            reason = ctrl.get("KickReason", "")
+
+            log = {
+                "type":     "control",
+                "action":   action,
+                "userId":   user_id,
+                "username": username,
+                "reason":   reason,
+                "ts":       ts,
+            }
+            push_log(log)
+
+            send_webhook([{
+                "title": f"⚡ Control Action: {action}",
+                "color": 0xef4444 if action == "Kick" else 0x3b82f6,
+                "thumbnail": {
+                    "url": "https://media.discordapp.net/attachments/1297976903428214868/1489394179242197232/images.png?ex=69d041eb&is=69cef06b&hm=910c300fedfb9fb0453c4d0694f86224a5649357df99908b7b4249fe1e7f39f0&=&format=webp&quality=lossless"
+                },
+                "fields": [
+                    {"name": "Player",  "value": f"{username} (`{user_id}`)", "inline": True},
+                    {"name": "Action",    "value": action,                      "inline": True},
+                    {"name": "Reason",  "value": reason or "—",               "inline": True},
+                    {"name": "Timestamp", "value": ts,                          "inline": False},
+                ]
+            }])
+        elif isinstance(settings, dict):
+            changes = ", ".join(f"{k}={v}" for k, v in settings.items())
+            log = {
+                "type":     "override",
+                "userId":   user_id,
+                "username": username,
+                "tab":      tab,
+                "changes":  changes,
+                "ts":       ts,
+            }
+            push_log(log)
+
+            send_webhook([{
+                "title": "⚙️ Override Applied",
+                "color": 0xa855f7,
+                "thumbnail": {
+                    "url": "https://media.discordapp.net/attachments/1297976903428214868/1489394179242197232/images.png?ex=69d041eb&is=69cef06b&hm=910c300fedfb9fb0453c4d0694f86224a5649357df99908b7b4249fe1e7f39f0&=&format=webp&quality=lossless"
+                },
+                "fields": [
+                    {"name": "Player",    "value": f"{username} (`{user_id}`)", "inline": True},
+                    {"name": "Tab",       "value": tab,                         "inline": True},
+                    {"name": "Changes","value": changes,                     "inline": False},
+                    {"name": "Timestamp",   "value": ts,                          "inline": False},
+                ]
+            }])
+
         if tab not in players_state[user_id]["override"]:
             players_state[user_id]["override"][tab] = {}
         if isinstance(settings, dict):
@@ -147,6 +282,13 @@ def get_players():
     validate_password()
     return json.dumps(players_state), 200, {"Content-Type": "application/json"}
 
+@app.route("/control/logs", methods=["GET"])
+def get_logs_endpoint():
+    validate_password()
+    return json.dumps(get_logs()), 200, {"Content-Type": "application/json"}
+
+# ── Admin Panel ───────────────────────────────────────────────────────────────
+
 @app.route("/script/admpanel")
 def admpanel():
     validate_password()
@@ -158,10 +300,17 @@ def admpanel():
     <title>DramaHub Admin Panel</title>
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-        body {{ background: #0f0f0f; color: #fff; font-family: 'Segoe UI', sans-serif; padding: 30px; }}
-        h1 {{ color: #a855f7; margin-bottom: 5px; font-size: 22px; }}
-        p.sub {{ color: #555; font-size: 13px; margin-bottom: 20px; }}
-        .status-bar {{ margin-bottom: 20px; padding: 10px 16px; background: #1a1a1a; border-radius: 8px; font-size: 12px; color: #666; border: 1px solid #2a2a2a; display: flex; justify-content: space-between; align-items: center; }}
+        body {{ background: #0f0f0f; color: #fff; font-family: 'Segoe UI', sans-serif; }}
+        .topbar {{ background: #1a1a1a; border-bottom: 1px solid #2a2a2a; padding: 16px 30px; display: flex; justify-content: space-between; align-items: center; }}
+        .topbar h1 {{ color: #a855f7; font-size: 20px; }}
+        .topbar span {{ color: #555; font-size: 12px; }}
+        .nav {{ display: flex; gap: 4px; padding: 20px 30px 0; border-bottom: 1px solid #1a1a1a; }}
+        .nav-btn {{ padding: 10px 20px; background: none; border: none; color: #555; cursor: pointer; font-size: 14px; border-bottom: 2px solid transparent; transition: .2s; }}
+        .nav-btn.active {{ color: #a855f7; border-bottom-color: #a855f7; }}
+        .nav-btn:hover {{ color: #ccc; }}
+        .page {{ display: none; padding: 24px 30px; }}
+        .page.active {{ display: block; }}
+        .status-bar {{ margin-bottom: 20px; padding: 10px 16px; background: #1a1a1a; border-radius: 8px; font-size: 12px; color: #666; border: 1px solid #2a2a2a; display: flex; justify-content: space-between; }}
         .dot {{ display: inline-block; width: 8px; height: 8px; background: #22c55e; border-radius: 50%; margin-right: 6px; animation: pulse 2s infinite; }}
         @keyframes pulse {{ 0%,100% {{ opacity:1; }} 50% {{ opacity:.4; }} }}
         .players-list {{ display: flex; flex-direction: column; gap: 16px; }}
@@ -189,22 +338,55 @@ def admpanel():
         .save-btn {{ padding: 10px 20px; background: #a855f7; border: none; color: white; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }}
         .save-btn:hover {{ background: #9333ea; }}
         .no-players {{ color: #444; font-size: 14px; padding: 40px; text-align: center; }}
+        .log-entry {{ padding: 10px 14px; border-bottom: 1px solid #1a1a1a; font-size: 12px; display: flex; gap: 12px; align-items: flex-start; }}
+        .log-entry:last-child {{ border-bottom: none; }}
+        .log-badge {{ padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }}
+        .badge-execution {{ background: #14532d; color: #22c55e; }}
+        .badge-override {{ background: #3b0764; color: #a855f7; }}
+        .badge-control {{ background: #7f1d1d; color: #ef4444; }}
+        .badge-control-refresh {{ background: #1e3a5f; color: #3b82f6; }}
+        .log-body {{ flex: 1; color: #ccc; line-height: 1.5; }}
+        .log-ts {{ color: #444; font-size: 11px; white-space: nowrap; }}
+        .logs-container {{ background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; overflow: hidden; max-height: 600px; overflow-y: auto; }}
+        .logs-toolbar {{ padding: 12px 16px; border-bottom: 1px solid #2a2a2a; display: flex; justify-content: space-between; align-items: center; }}
+        .logs-toolbar span {{ font-size: 12px; color: #555; }}
+        .clear-btn {{ padding: 6px 14px; background: #333; border: none; color: #ccc; border-radius: 6px; cursor: pointer; font-size: 12px; }}
+        .clear-btn:hover {{ background: #444; }}
         #toast {{ position: fixed; bottom: 24px; right: 24px; background: #a855f7; color: white; padding: 12px 20px; border-radius: 8px; font-size: 13px; display: none; box-shadow: 0 4px 20px rgba(168,85,247,.4); z-index: 999; }}
         .online {{ color: #22c55e; }}
         .offline {{ color: #ef4444; }}
+        .exec-badge {{ background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 6px; padding: 2px 8px; font-size: 11px; color: #a855f7; }}
     </style>
 </head>
 <body>
-    <h1>DramaHub Admin Panel</h1>
-    <p class="sub">Controle individual de cada player em tempo real</p>
-
-    <div class="status-bar">
-        <div><span class="dot"></span>Auto-refresh a cada 3s</div>
-        <div id="player-count">0 players</div>
+    <div class="topbar">
+        <h1>DramaHub Admin Panel</h1>
+        <span id="topbar-status"><span class="dot"></span>Auto-refresh a cada 3s</span>
     </div>
 
-    <div class="players-list" id="players-list">
-        <div class="no-players">Nenhum player ativo ainda.</div>
+    <div class="nav">
+        <button class="nav-btn active" onclick="switchTab('players')">👥 Players</button>
+        <button class="nav-btn" onclick="switchTab('logs')">📋 Logs</button>
+    </div>
+
+    <div id="page-players" class="page active">
+        <div class="status-bar">
+            <div><span class="dot"></span>Players ativos</div>
+            <div id="player-count">0 players</div>
+        </div>
+        <div class="players-list" id="players-list">
+            <div class="no-players">Nenhum player ativo ainda.</div>
+        </div>
+    </div>
+
+    <div id="page-logs" class="page">
+        <div class="logs-container">
+            <div class="logs-toolbar">
+                <span id="log-count">0 entradas</span>
+                <button class="clear-btn" onclick="clearLogs()">🗑 Limpar view</button>
+            </div>
+            <div id="logs-list"></div>
+        </div>
     </div>
 
     <div id="toast"></div>
@@ -251,6 +433,15 @@ def admpanel():
         }}
 
         let openPlayers = new Set()
+        let currentTab  = "players"
+
+        function switchTab(tab) {{
+            currentTab = tab
+            document.querySelectorAll(".page").forEach(p => p.classList.remove("active"))
+            document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"))
+            document.getElementById(`page-${{tab}}`).classList.add("active")
+            event.target.classList.add("active")
+        }}
 
         function isOnline(lastSeen) {{
             return (Date.now() / 1000 - lastSeen) < 15
@@ -275,7 +466,6 @@ def admpanel():
 
         function buildTabCard(userId, tab, tabDef, settings) {{
             const rows = []
-
             for (const key of (tabDef.booleans ?? [])) {{
                 const val = getVal(settings, tab, key) ?? false
                 rows.push(`
@@ -287,7 +477,6 @@ def admpanel():
                         </label>
                     </div>`)
             }}
-
             for (const key of (tabDef.numbers ?? [])) {{
                 const val = getVal(settings, tab, key) ?? 0
                 rows.push(`
@@ -296,7 +485,6 @@ def admpanel():
                         <input type="number" class="input-num" id="${{userId}}_${{tab}}_${{key}}" value="${{val}}" step="0.1" onchange="markDirty(this)">
                     </div>`)
             }}
-
             for (const key of (tabDef.strings ?? [])) {{
                 const val = getVal(settings, tab, key) ?? ""
                 rows.push(`
@@ -305,7 +493,6 @@ def admpanel():
                         <input type="text" class="input-str" id="${{userId}}_${{tab}}_${{key}}" value="${{val}}" onchange="markDirty(this)">
                     </div>`)
             }}
-
             return `
                 <div class="tab-card">
                     <h3>${{tab.replace("Tab", "")}}</h3>
@@ -367,28 +554,32 @@ def admpanel():
                     if (el) {{ setVal(payload, tab, key, el.value); delete el.dataset.dirty }}
                 }}
             }}
-
             await fetch(`/control/override/${{userId}}?password=${{PASSWORD}}`, {{
                 method: "POST",
                 headers: {{ "Content-Type": "application/json" }},
                 body: JSON.stringify(payload)
             }})
-
             showToast("✅ Override enviado!")
         }}
 
         async function loadPlayers() {{
             try {{
-                const res = await fetch(`/control/players?password=${{PASSWORD}}`)
+                const res  = await fetch(`/control/players?password=${{PASSWORD}}`)
                 const data = await res.json()
                 renderPlayers(data)
-            }} catch(e) {{
-                console.error("Erro ao carregar players:", e)
-            }}
+            }} catch(e) {{ console.error(e) }}
+        }}
+
+        async function loadLogs() {{
+            try {{
+                const res  = await fetch(`/control/logs?password=${{PASSWORD}}`)
+                const data = await res.json()
+                renderLogs(data)
+            }} catch(e) {{ console.error(e) }}
         }}
 
         function renderPlayers(data) {{
-            const list = document.getElementById("players-list")
+            const list    = document.getElementById("players-list")
             const entries = Object.entries(data)
 
             document.getElementById("player-count").textContent =
@@ -409,13 +600,15 @@ def admpanel():
                 const lastSeen = player.info?.lastSeen
                     ? new Date(player.info.lastSeen * 1000).toLocaleTimeString("pt-BR")
                     : "?"
-                const statusHtml = `<span class="${{online ? "online" : "offline"}}">${{online ? "● online" : "● offline"}}</span> · último report: ${{lastSeen}}`
+                const execCount  = player.info?.execCount ?? 0
+                const statusHtml = `
+                    <span class="${{online ? "online" : "offline"}}">${{online ? "● online" : "● offline"}}</span>
+                    · último report: ${{lastSeen}}
+                    · <span class="exec-badge">🚀 ${{execCount}}x executado</span>`
 
                 const existing = document.getElementById(`card-${{userId}}`)
-
                 if (existing) {{
                     existing.querySelector(".player-meta").innerHTML = statusHtml
-
                     for (const [tab, tabDef] of Object.entries(TABS)) {{
                         for (const key of [...(tabDef.booleans ?? []), ...(tabDef.numbers ?? []), ...(tabDef.strings ?? [])]) {{
                             const el = document.getElementById(`${{userId}}_${{tab}}_${{key}}`)
@@ -447,6 +640,37 @@ def admpanel():
             }})
         }}
 
+        function renderLogs(logs) {{
+            const container = document.getElementById("logs-list")
+            document.getElementById("log-count").textContent = `${{logs.length}} entradas`
+
+            container.innerHTML = logs.map(log => {{
+                let badge, body
+                if (log.type === "execution") {{
+                    badge = `<span class="log-badge badge-execution">EXEC</span>`
+                    body  = `<b>${{log.username}}</b> executou o script · execução #${{log.count}}`
+                }} else if (log.type === "override") {{
+                    badge = `<span class="log-badge badge-override">OVERRIDE</span>`
+                    body  = `<b>${{log.username}}</b> · ${{log.tab}} → ${{log.changes}}`
+                }} else if (log.type === "control") {{
+                    const isRefresh = log.action === "Refresh"
+                    badge = `<span class="log-badge ${{isRefresh ? "badge-control-refresh" : "badge-control"}}">${{log.action.toUpperCase()}}</span>`
+                    body  = `<b>${{log.username}}</b>${{log.reason ? ` · motivo: ${{log.reason}}` : ""}}`
+                }}
+                return `
+                    <div class="log-entry">
+                        ${{badge}}
+                        <div class="log-body">${{body}}</div>
+                        <div class="log-ts">${{log.ts}}</div>
+                    </div>`
+            }}).join("")
+        }}
+
+        function clearLogs() {{
+            document.getElementById("logs-list").innerHTML = ""
+            document.getElementById("log-count").textContent = "0 entradas"
+        }}
+
         function togglePlayer(userId) {{
             const body = document.getElementById(`body-${{userId}}`)
             body.classList.toggle("open")
@@ -462,7 +686,8 @@ def admpanel():
         }}
 
         loadPlayers()
-        setInterval(loadPlayers, 3000)
+        loadLogs()
+        setInterval(() => {{ loadPlayers(); loadLogs() }}, 3000)
     </script>
 </body>
 </html>'''
