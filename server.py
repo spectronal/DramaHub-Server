@@ -314,18 +314,28 @@ def admpanel():
                 </div>`
         }}
 
-        function buildPlayerBody(userId, player) {
-            const settings = player.settings ?? {}
-            const cards = Object.entries(TABS).map(([tab, tabDef]) =>
-                buildTabCard(userId, tab, tabDef, settings)
-            ).join("")
-            return `
-                <div class="tabs-grid">${cards}</div>
-                <div style="display:flex;gap:10px;margin-top:16px">
-                    <button class="save-btn" onclick="savePlayer('${userId}')">💾 Aplicar no player</button>
-                    <button class="save-btn" style="background:#ef4444" onclick="kickPlayer('${userId}')">👢 Kick</button>
-                </div>`
-        }
+        function buildPlayerBody(userId, player) {{
+                    const settings = player.settings ?? {{}}
+                    const cards = Object.entries(TABS).map(([tab, tabDef]) =>
+                        buildTabCard(userId, tab, tabDef, settings)
+                    ).join("")
+                    return `
+                        <div class="tabs-grid">${{cards}}</div>
+                        <div style="display:flex;gap:10px;margin-top:16px">
+                            <button class="save-btn" onclick="savePlayer('${{userId}}')">💾 Aplicar no player</button>
+                            <button class="save-btn" style="background:#ef4444" onclick="kickPlayer('${{userId}}')">👢 Kick</button>
+                        </div>`
+                }}
+        
+                async function kickPlayer(userId) {{
+                    const reason = prompt("Motivo do kick:") ?? "Removido pelo administrador."
+                    await fetch(`/control/override/${{userId}}?password=${{PASSWORD}}`, {{
+                        method: "POST",
+                        headers: {{ "Content-Type": "application/json" }},
+                        body: JSON.stringify({{ _control: {{ Kick: true, KickReason: reason }} }})
+                    }})
+                    showToast(`👢 Kick enviado!`)
+                }}
 
         function markDirty(el) {{
             el.dataset.dirty = "1"
