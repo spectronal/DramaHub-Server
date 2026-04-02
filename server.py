@@ -38,7 +38,6 @@ SCRIPTS = {
     "ui-gacha":      f"{BASE_PATH}/UI/Gacha.lua",
 }
 
-# { userId: { settings: {...}, info: { username, lastSeen }, override: {...} } }
 players_state = {}
 
 def validate_token():
@@ -187,7 +186,7 @@ def admpanel():
         input:checked + .slider:before {{ transform: translateX(16px); }}
         .input-num {{ background: #222; border: 1px solid #333; color: #fff; border-radius: 6px; padding: 4px 8px; width: 80px; font-size: 12px; }}
         .input-str {{ background: #222; border: 1px solid #333; color: #fff; border-radius: 6px; padding: 4px 8px; width: 130px; font-size: 12px; }}
-        .save-btn {{ margin-top: 16px; padding: 10px 20px; background: #a855f7; border: none; color: white; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }}
+        .save-btn {{ padding: 10px 20px; background: #a855f7; border: none; color: white; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }}
         .save-btn:hover {{ background: #9333ea; }}
         .no-players {{ color: #444; font-size: 14px; padding: 40px; text-align: center; }}
         #toast {{ position: fixed; bottom: 24px; right: 24px; background: #a855f7; color: white; padding: 12px 20px; border-radius: 8px; font-size: 13px; display: none; box-shadow: 0 4px 20px rgba(168,85,247,.4); z-index: 999; }}
@@ -274,19 +273,20 @@ def admpanel():
             }}
         }}
 
-        function buildPlayerBody(userId, player) {{
-                    const settings = player.settings ?? {{}}
-                    const cards = Object.entries(TABS).map(([tab, tabDef]) =>
-                        buildTabCard(userId, tab, tabDef, settings)
-                    ).join("")
-                    return `
-                        <div class="tabs-grid">${{cards}}</div>
-                        <div style="display:flex;gap:10px;margin-top:16px">
-                            <button class="save-btn" onclick="savePlayer('${{userId}}')">Apply Changes</button>
-                            <button class="save-btn" style="background:#3b82f6" onclick="refreshPlayer('${{userId}}')">Refresh Script</button>
-                            <button class="save-btn" style="background:#ef4444" onclick="kickPlayer('${{userId}}')">Kick Player</button>
-                        </div>`
-                }}
+        function buildTabCard(userId, tab, tabDef, settings) {{
+            const rows = []
+
+            for (const key of (tabDef.booleans ?? [])) {{
+                const val = getVal(settings, tab, key) ?? false
+                rows.push(`
+                    <div class="row">
+                        <span>${{key}}</span>
+                        <label class="toggle">
+                            <input type="checkbox" id="${{userId}}_${{tab}}_${{key}}" ${{val ? "checked" : ""}} onchange="markDirty(this)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>`)
+            }}
 
             for (const key of (tabDef.numbers ?? [])) {{
                 const val = getVal(settings, tab, key) ?? 0
@@ -314,36 +314,37 @@ def admpanel():
         }}
 
         function buildPlayerBody(userId, player) {{
-                    const settings = player.settings ?? {{}}
-                    const cards = Object.entries(TABS).map(([tab, tabDef]) =>
-                        buildTabCard(userId, tab, tabDef, settings)
-                    ).join("")
-                    return `
-                    <div style="display:flex;gap:10px;margin-top:16px">
-                                        <button class="save-btn" onclick="savePlayer('${{userId}}')">Apply Changes</button>
-                                        <button class="save-btn" style="background:#3b82f6" onclick="refreshPlayer('${{userId}}')">Refresh Script</button>
-                                        <button class="save-btn" style="background:#ef4444" onclick="kickPlayer('${{userId}}')">Kick Player</button>
-                                    </div>`
-                }}
-        
-                async function kickPlayer(userId) {{
-                    const reason = prompt("Motivo do kick:") ?? "Removido pelo administrador."
-                    await fetch(`/control/override/${{userId}}?password=${{PASSWORD}}`, {{
-                        method: "POST",
-                        headers: {{ "Content-Type": "application/json" }},
-                        body: JSON.stringify({{ _control: {{ Kick: true, KickReason: reason }} }})
-                    }})
-                    showToast(`Kick enviado!`)
-                }}
+            const settings = player.settings ?? {{}}
+            const cards = Object.entries(TABS).map(([tab, tabDef]) =>
+                buildTabCard(userId, tab, tabDef, settings)
+            ).join("")
+            return `
+                <div class="tabs-grid">${{cards}}</div>
+                <div style="display:flex;gap:10px;margin-top:16px">
+                    <button class="save-btn" onclick="savePlayer('${{userId}}')">Apply Changes</button>
+                    <button class="save-btn" style="background:#3b82f6" onclick="refreshPlayer('${{userId}}')">Refresh Script</button>
+                    <button class="save-btn" style="background:#ef4444" onclick="kickPlayer('${{userId}}')">Kick Player</button>
+                </div>`
+        }}
 
-                async function refreshPlayer(userId) {{
-                    await fetch(`/control/override/${{userId}}?password=${{PASSWORD}}`, {{
-                        method: "POST",
-                        headers: {{ "Content-Type": "application/json" }},
-                        body: JSON.stringify({{ _control: {{ Refresh: true }} }})
-                    }})
-                    showToast("Refresh enviado!")
-                }}
+        async function kickPlayer(userId) {{
+            const reason = prompt("Motivo do kick:") ?? "Removido pelo administrador."
+            await fetch(`/control/override/${{userId}}?password=${{PASSWORD}}`, {{
+                method: "POST",
+                headers: {{ "Content-Type": "application/json" }},
+                body: JSON.stringify({{ _control: {{ Kick: true, KickReason: reason }} }})
+            }})
+            showToast("Kick enviado!")
+        }}
+
+        async function refreshPlayer(userId) {{
+            await fetch(`/control/override/${{userId}}?password=${{PASSWORD}}`, {{
+                method: "POST",
+                headers: {{ "Content-Type": "application/json" }},
+                body: JSON.stringify({{ _control: {{ Refresh: true }} }})
+            }})
+            showToast("Refresh enviado!")
+        }}
 
         function markDirty(el) {{
             el.dataset.dirty = "1"
@@ -398,7 +399,6 @@ def admpanel():
                 return
             }}
 
-            // Remove cards de players que saíram
             list.querySelectorAll(".player-card").forEach(card => {{
                 const uid = card.id.replace("card-", "")
                 if (!data[uid]) card.remove()
@@ -416,7 +416,6 @@ def admpanel():
                 if (existing) {{
                     existing.querySelector(".player-meta").innerHTML = statusHtml
 
-                    // Atualiza só campos não sujos
                     for (const [tab, tabDef] of Object.entries(TABS)) {{
                         for (const key of [...(tabDef.booleans ?? []), ...(tabDef.numbers ?? []), ...(tabDef.strings ?? [])]) {{
                             const el = document.getElementById(`${{userId}}_${{tab}}_${{key}}`)
