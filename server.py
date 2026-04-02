@@ -41,8 +41,6 @@ SCRIPTS = {
 # { userId: { settings: {...}, info: { username, lastSeen }, override: {...} } }
 players_state = {}
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
 def validate_token():
     token = request.args.get("token") or request.headers.get("X-Token")
     if token != SCRIPT_TOKEN:
@@ -71,8 +69,6 @@ def fetch_from_github(file_path):
         abort(500)
     return response.text
 
-# ── Script Endpoints ──────────────────────────────────────────────────────────
-
 @app.route("/init")
 def serve_init():
     content = fetch_from_github("init.lua")
@@ -100,8 +96,6 @@ def serve_script(name):
         abort(404)
     content = fetch_from_github(file_path)
     return content, 200, {"Content-Type": "text/plain"}
-
-# ── Control Endpoints ─────────────────────────────────────────────────────────
 
 @app.route("/control/report", methods=["POST"])
 def report_state():
@@ -153,8 +147,6 @@ def set_override(user_id):
 def get_players():
     validate_password()
     return json.dumps(players_state), 200, {"Content-Type": "application/json"}
-
-# ── Admin Panel ───────────────────────────────────────────────────────────────
 
 @app.route("/script/admpanel")
 def admpanel():
@@ -322,15 +314,18 @@ def admpanel():
                 </div>`
         }}
 
-        function buildPlayerBody(userId, player) {{
-            const settings = player.settings ?? {{}}
+        function buildPlayerBody(userId, player) {
+            const settings = player.settings ?? {}
             const cards = Object.entries(TABS).map(([tab, tabDef]) =>
                 buildTabCard(userId, tab, tabDef, settings)
             ).join("")
             return `
-                <div class="tabs-grid">${{cards}}</div>
-                <button class="save-btn" onclick="savePlayer('${{userId}}')">💾 Aplicar no player</button>`
-        }}
+                <div class="tabs-grid">${cards}</div>
+                <div style="display:flex;gap:10px;margin-top:16px">
+                    <button class="save-btn" onclick="savePlayer('${userId}')">💾 Aplicar no player</button>
+                    <button class="save-btn" style="background:#ef4444" onclick="kickPlayer('${userId}')">👢 Kick</button>
+                </div>`
+        }
 
         function markDirty(el) {{
             el.dataset.dirty = "1"
@@ -454,8 +449,6 @@ def admpanel():
     </script>
 </body>
 </html>'''
-
-# ── Root ──────────────────────────────────────────────────────────────────────
 
 @app.route("/")
 def index():
