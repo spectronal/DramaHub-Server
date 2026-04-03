@@ -218,7 +218,7 @@ def set_override(user_id):
     for tab, settings in data.items():
         if tab == "_control":
             ctrl = settings
-            action = "Kick" if ctrl.get("Kick") else "Refresh" if ctrl.get("Refresh") else "Control"
+            action = "Kick" if ctrl.get("Kick") else "Refresh" if ctrl.get("Refresh") else "Message" if ctrl.get("mSender") else "Control"
             reason = ctrl.get("KickReason", "")
 
             log = {
@@ -417,7 +417,7 @@ def admpanel():
             }},
             GamemodesTab: {{
                 booleans: ["AutoJoinPublicGamemode", "AutoJoinSelectedGamemode", "AutoCreateGamemode", "AutoLeaveGamemode", "AutoFarmMobs", "AutoEquipBest", "AutoEquipTitle"],
-                strings:  ["SelectedPriority", "SelectedRaid", "SelectedDungeon", "SelectedInfinityCastle", "SelectedDefenseMode", "SelectedEasterRaid", "SelectedRaidDifficulty", "SelectedDungeonDifficulty", "SelectedInfinityCastleDifficulty", "SelectedDefenseModeDifficulty", "SelectedEasterRaidDifficulty", "SelectedEquipBestInMode", "SelectedEquipBestNoMode", "SelectedEquipTitleInMode", "SelectedEquipTitleNoMode"],
+                strings:  ["SelectedGamemode", "SelectedPriority", "SelectedRaid", "SelectedDungeon", "SelectedInfinityCastle", "SelectedDefenseMode", "SelectedEasterRaid", "SelectedRaidDifficulty", "SelectedDungeonDifficulty", "SelectedInfinityCastleDifficulty", "SelectedDefenseModeDifficulty", "SelectedEasterRaidDifficulty", "SelectedEquipBestInMode", "SelectedEquipBestNoMode", "SelectedEquipTitleInMode", "SelectedEquipTitleNoMode"],
                 numbers:  ["RaidToLeave", "DungeonToLeave", "InfinityCastleToLeave", "DefenseToLeave", "EasterRaidToLeave", "WorldToTeleport"],
             }},
             ExchangeTab: {{
